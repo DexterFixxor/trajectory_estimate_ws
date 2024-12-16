@@ -28,10 +28,10 @@ class BallCenterNode : public rclcpp::Node
     this->get_parameter("buffer_size", buffer_size);
     this->get_parameter("namespace", ns_name);
 
-    subject_name = "Kutija";
+    subject_name = "KockaPlava";
 
     // ROS
-    publisher = this->create_publisher<geometry_msgs::msg::Point>("/vicon/kutija", rclcpp::QoS(10));
+    publisher = this->create_publisher<geometry_msgs::msg::Point>("/vicon/position", rclcpp::QoS(10));
     marker_pub = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker",1);  
 
     marker_msg.header.frame_id = "map";
@@ -129,12 +129,13 @@ class BallCenterNode : public rclcpp::Node
      // --------------------------
     vicon_client.GetFrame();
     marker_count = vicon_client.GetMarkerCount(subject_name).MarkerCount;
-    std::cout << "Got number of markers: " << marker_count << std::endl;
+    std::cout << "--------------------------------------";
+    std::cout << "\nOn segment: " << this->subject_name 
+              << "\nGot number of markers: " << marker_count << std::endl;
 
     for (unsigned int i = 0; i < marker_count; i++)
     {
       std::string marker_name = vicon_client.GetMarkerName(subject_name, i).MarkerName;
-      
       marker_names.push_back(marker_name);
     }
     // -------------------
@@ -144,22 +145,53 @@ class BallCenterNode : public rclcpp::Node
     vicon_client.GetFrame();
     // Output_GetFrameNumber frame_number = vicon_client.GetFrameNumber();
   
-    // msg.x = 0;
-    // msg.y = 0;
-    // msg.z = 0;
+    msg.x = 0;
+    msg.y = 0;
+    msg.z = 0;
 
-    for (auto name : marker_names)
+    unsigned int segment_count = vicon_client.GetSegmentCount("KockaPlava").SegmentCount;
+
+    for(unsigned int i = 0; i < segment_count; i++)
     {
-      Output_GetMarkerGlobalTranslation marker_pos = vicon_client.GetMarkerGlobalTranslation(subject_name, name);
+      auto segment_name = vicon_client.GetSegmentName("KockaPlava", i).SegmentName;
+      auto trans = vicon_client.GetSegmentGlobalTranslation("KockaPlava", segment_name).Translation;
 
-      msg.x += marker_pos.Translation[0];
-      msg.y += marker_pos.Translation[1];
-      msg.z += marker_pos.Translation[2];
+      msg.x += trans[0];
+      msg.y += trans[1];
+      msg.z += trans[2];
     }
 
-    msg.x = msg.x / this->marker_count;
-    msg.y = msg.y / this->marker_count;
-    msg.z = msg.z / this->marker_count;
+    msg.x /= 2;
+    msg.y /= 2;
+    msg.z /= 2;
+
+
+
+    // for (auto name : marker_names)
+    // {
+    //   Output_GetMarkerGlobalTranslation marker_pos = vicon_client.GetMarkerGlobalTranslation(subject_name, name);
+      
+    //   if (!(marker_pos.Translation[0] == 0.0 || marker_pos.Translation[1] == 0.0 || marker_pos.Translation[2] == 0.0))
+    //   { 
+    //     msg.x += marker_pos.Translation[0];
+    //     msg.y += marker_pos.Translation[1];
+    //     msg.z += marker_pos.Translation[2];
+    //   }
+    //   else
+    //   {
+    //     std::cout << "\nGot ZERO: " << name << std::endl;
+    //   }
+    //   // std::cout << "X: " << marker_pos.Translation[0]
+    //   //           << "Y: " << marker_pos.Translation[1] 
+    //   //           << "Z: " << marker_pos.Translation[2] 
+    //   //           << std::endl;
+
+ 
+    // }
+
+    // msg.x = msg.x / this->marker_count;
+    // msg.y = msg.y / this->marker_count;
+    // msg.z = msg.z / this->marker_count;
 
     publisher->publish(msg);
 

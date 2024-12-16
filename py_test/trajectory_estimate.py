@@ -20,9 +20,17 @@ class Estimator:
         self.prev_pos = None
         self.velocity = None
         self.prev_trajectory = None
-        self.alpha = 0.7
+        self.alpha = 0.8
         self.smooth_time = 0.9 * self.max_time
         self.index_smooth_time = int(self.smooth_time / dt)
+        
+        # Gaussian attributes
+        self.gaussian_coords = []
+        
+        self.saved_trajectory = None
+        self.saved_coord = None
+        
+        self.flg_done = False
         
         # workspace check
         self.xyz_min = np.array(xyz_min)
@@ -44,11 +52,41 @@ class Estimator:
             # ---------- END: smooth trajectory
                         
             # ---------- BEGIN: check if in workspace
-            in_workspace = (self.prev_trajectory >= self.xyz_min) & (self.prev_trajectory <= self.xyz_max)
-            in_workspace = np.all(in_workspace, axis=1)
+            in_workspace = np.all((self.prev_trajectory >= self.xyz_min) & (self.prev_trajectory <= self.xyz_max), axis=1)
+            
+            # store last coord on trajectory which is in workspace
             if np.any(in_workspace):
-                last_coords = self.prev_trajectory[in_workspace][-1]
-                print(last_coords)            
+                last_coords = self.prev_trajectory[in_workspace][-1] # type: ignore
+                self.gaussian_coords.append(last_coords)
+                
+                if len(self.gaussian_coords) >= 20:
+                    array_cords_old = np.array(self.gaussian_coords[:-1].copy())
+                    array_cors_new = np.array(self.gaussian_coords.copy())
+                    
+                    cov_old = array_cords_old.T @ array_cords_old
+                    cov_new = array_cors_new.T @ array_cors_new
+                    
+                    mean_old = np.mean(array_cords_old, axis=0)
+                    mean_new = np.mean(array_cors_new, axis=0)
+                    
+                    # Calcualte DKL
+                    inv_cov_new = np.linalg.inv(cov_new)
+                    dkl = 0.5 * (
+                        np.log(np.linalg.det(cov_new)/np.linalg.det(cov_old)) - 3 + 
+                        np.trace(inv_cov_new @ cov_old) + 
+                        (mean_new - mean_old).T @ inv_cov_new @ (mean_new - mean_old)
+                        )
+                    
+                    if self.prev_dkl is not None and abs(dkl - self.prev_dkl) < 0.0005:
+                        print(dkl, self.prev_dkl)
+                        if self.saved_trajectory is None:
+                            self.saved_trajectory = self.prev_trajectory.copy() # type: ignore
+                            self.flg_done = True
+                            #self.saved_coord = mean_new.copy()
+                    
+                    self.saved_coord = mean_new
+                    
+                    self.prev_dkl = dkl
             # ---------- END: check if in workspace
         self.prev_pos = pos
         
@@ -67,6 +105,20 @@ class Estimator:
             self.prev_trajectory[0] = tmp
         else:
             self.prev_trajectory = new_trajectory[:self.index_smooth_time+1]
+
+    def reset(self):
+        self.prev_pos = None
+        self.velocity = None
+        self.prev_trajectory = None
+        
+        self.gaussian_coords = []
+        self.saved_trajectory = None
+        self.saved_coord = None
+        
+        self.prev_dkl = None
+        
+        
+        
 
 def read_vicon_file(file_path : str):
     fieldnames=['Frame','Sub Frame','RX','RY','RZ','TX','TY','TZ']
@@ -147,28 +199,27 @@ def plot_bbox(ax, xyz_min, xyz_max):
 
 
 if __name__ == "__main__":
-    # FILE_NAME = 'Cet_2_02.csv'
-    # data_path = f"./data/{FILE_NAME}"
-    # rot, trans = read_vicon_file(data_path)
+    FILE_NAME = 'Cet_2_02.csv'
+    data_path = f"./data/{FILE_NAME}"
+    rot, trans = read_vicon_file(data_path)
     
-    dir_list = load_all_npy('./data/05_01_2024_11_11_06')
+    # dir_list = load_all_npy('./data/05_01_2024_11_11_06')
     
-    file_select = np.random.randint(0, len(dir_list))
-    print(f"Selected file: {file_select}")
+    # file_select = np.random.randint(0, len(dir_list))
+    # print(f"Selected file: {file_select}")
     
-    # 15688
-    throw_file = dir_list[15688]
+    # # 15688
+    # throw_file = dir_list[file_select]
+    # trans = np.load(throw_file) * 1000
     
-    trans = np.load(throw_file) * 1000
-    
-    coord_start = int(0.8 * len(trans))
+    coord_start = int(0.4 * len(trans))
     start = trans[coord_start]
     trans = trans - start 
     
     
-    xyz_min = np.array([-100, -100, -20])
-    xyz_max = np.array([100, 100, 20])
-    estimator = Estimator(dt = 1/80, max_time = 0.75, xyz_min = xyz_min , xyz_max = xyz_max)
+    xyz_min = np.array([-200, -200, -200])
+    xyz_max = np.array([200, 200, 200])
+    estimator = Estimator(dt = 1/100, max_time = 0.75, xyz_min = xyz_min , xyz_max = xyz_max)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -177,14 +228,20 @@ if __name__ == "__main__":
     ax.set_zlim([-1000, 1000])
     plot_bbox(ax, xyz_min, xyz_max)
     
-
+    n = 150
+    import time
+    
+    start = time.time()
     for i, pos in enumerate(trans):
-        
-            if i < 30:
+            # time.sleep(1/80)
+            if i < n:
                 
                 trajectory, in_workspace = estimator.position_callback(pos)
-               
-                if trajectory is not None:
+                if estimator.flg_done:
+                    print("Broj iteracija: ", i)
+                    print(f"Vreme: {time.time() - start}")
+                    
+                if not estimator.flg_done and np.any(in_workspace):
                     # xs = trajectory[:estimator.index_smooth_time, 0]
                     # ys = trajectory[:estimator.index_smooth_time, 1]
                     # zs = trajectory[:estimator.index_smooth_time, 2]
@@ -197,15 +254,24 @@ if __name__ == "__main__":
                     ax.scatter(xs,ys, zs, color='#d11dcb')
                     
                 
-            if i == 10:        
-                if estimator.prev_trajectory is not None:
-                    trajectory = estimator.prev_trajectory
+            if i == n:        
+               
+                if estimator.saved_trajectory is not None:
+                    trajectory = estimator.saved_trajectory
                     
                     xs = trajectory[:, 0]
                     ys = trajectory[:, 1]
                     zs = trajectory[:, 2]
                     
                     ax.scatter(xs,ys, zs)
+                    
+                    ax.scatter(estimator.saved_coord[0], 
+                               estimator.saved_coord[1], 
+                               estimator.saved_coord[2], 
+                               s = 100, #size
+                               color="g" 
+                               )
+                    
             
             
             
