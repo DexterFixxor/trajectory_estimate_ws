@@ -145,25 +145,27 @@ class BallCenterNode : public rclcpp::Node
     vicon_client.GetFrame();
     // Output_GetFrameNumber frame_number = vicon_client.GetFrameNumber();
   
-    msg.x = 0;
-    msg.y = 0;
-    msg.z = 0;
+    auto trans = vicon_client.GetSegmentGlobalTranslation("D12", "seg").Translation;
+    
+    
+    msg.x = trans[0];
+    msg.y = trans[1];
+    msg.z = trans[2];
+    // unsigned int segment_count = vicon_client.GetSegmentCount("KockaPlava").SegmentCount;
 
-    unsigned int segment_count = vicon_client.GetSegmentCount("KockaPlava").SegmentCount;
+    // for(unsigned int i = 0; i < segment_count; i++)
+    // {
+    //   auto segment_name = vicon_client.GetSegmentName("KockaPlava", i).SegmentName;
+    //   auto trans = vicon_client.GetSegmentGlobalTranslation("KockaPlava", segment_name).Translation;
 
-    for(unsigned int i = 0; i < segment_count; i++)
-    {
-      auto segment_name = vicon_client.GetSegmentName("KockaPlava", i).SegmentName;
-      auto trans = vicon_client.GetSegmentGlobalTranslation("KockaPlava", segment_name).Translation;
+    //   msg.x += trans[0];
+    //   msg.y += trans[1];
+    //   msg.z += trans[2];
+    // }
 
-      msg.x += trans[0];
-      msg.y += trans[1];
-      msg.z += trans[2];
-    }
-
-    msg.x /= 2;
-    msg.y /= 2;
-    msg.z /= 2;
+    // msg.x /= 2;
+    // msg.y /= 2;
+    // msg.z /= 2;
 
 
 

@@ -72,7 +72,6 @@ class Estimator:
                         )
                     
                     if self.prev_dkl is not None and abs(dkl - self.prev_dkl) < 0.0005:
-                        print(dkl, self.prev_dkl)
                         if not self.flg_done:
                             self.saved_trajectory = self.prev_trajectory.copy() # type: ignore
                             self.saved_coord = mean_new.copy()
@@ -107,3 +106,5 @@ class Estimator:
         self.saved_coord = None
         
         self.prev_dkl = None
+        
+        self.flg_done = False

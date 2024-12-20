@@ -4,6 +4,9 @@ import numpy as np
 import glob
 import os
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection    
+import time
+from scipy.spatial.transform import Rotation as R
+from scipy.spatial import transform as t
 
 
 class Estimator:
@@ -20,7 +23,7 @@ class Estimator:
         self.prev_pos = None
         self.velocity = None
         self.prev_trajectory = None
-        self.alpha = 0.8
+        self.alpha = 0.9
         self.smooth_time = 0.9 * self.max_time
         self.index_smooth_time = int(self.smooth_time / dt)
         
@@ -59,7 +62,7 @@ class Estimator:
                 last_coords = self.prev_trajectory[in_workspace][-1] # type: ignore
                 self.gaussian_coords.append(last_coords)
                 
-                if len(self.gaussian_coords) >= 20:
+                if len(self.gaussian_coords) >= 10:
                     array_cords_old = np.array(self.gaussian_coords[:-1].copy())
                     array_cors_new = np.array(self.gaussian_coords.copy())
                     
@@ -77,14 +80,14 @@ class Estimator:
                         (mean_new - mean_old).T @ inv_cov_new @ (mean_new - mean_old)
                         )
                     
-                    if self.prev_dkl is not None and abs(dkl - self.prev_dkl) < 0.0005:
-                        print(dkl, self.prev_dkl)
+                    if self.prev_dkl is not None and abs(dkl - self.prev_dkl) < 0.005 :
+                        
                         if self.saved_trajectory is None:
                             self.saved_trajectory = self.prev_trajectory.copy() # type: ignore
                             self.flg_done = True
                             #self.saved_coord = mean_new.copy()
                     
-                    self.saved_coord = mean_new
+                            self.saved_coord = self.saved_trajectory[in_workspace][-1]
                     
                     self.prev_dkl = dkl
             # ---------- END: check if in workspace
@@ -99,7 +102,6 @@ class Estimator:
     
     def smooth_trajectory(self, new_trajectory : np.ndarray):
         if self.prev_trajectory is not None:
-            
             tmp = self.prev_trajectory[1]
             self.prev_trajectory[-self.index_smooth_time:] = self.alpha * new_trajectory[:self.index_smooth_time] + (1 - self.alpha) * self.prev_trajectory[1:self.index_smooth_time+1]
             self.prev_trajectory[0] = tmp
@@ -111,11 +113,13 @@ class Estimator:
         self.velocity = None
         self.prev_trajectory = None
         
-        self.gaussian_coords = []
+        self.gaussian_coords = [] #self.gaussian_coords[-5:]
         self.saved_trajectory = None
         self.saved_coord = None
         
         self.prev_dkl = None
+        
+        self.flg_done = False
         
         
         
@@ -137,9 +141,9 @@ def read_vicon_file(file_path : str):
                     "RX": float(row[2]),
                     "RY": float(row[3]),
                     "RZ": float(row[4]),
-                    "X": float(row[-3]),
-                    "Y": float(row[-2]),
-                    "Z": float(row[-1])
+                    "X":  float(row[5]),
+                    "Y":  float(row[6]),
+                    "Z":  float(row[7])
                 }
                 
                 sorted_data.append(frame_data)
@@ -199,27 +203,25 @@ def plot_bbox(ax, xyz_min, xyz_max):
 
 
 if __name__ == "__main__":
-    FILE_NAME = 'Cet_2_02.csv'
+    FILE_NAME = 'D12_proba01.csv'
     data_path = f"./data/{FILE_NAME}"
     rot, trans = read_vicon_file(data_path)
     
-    # dir_list = load_all_npy('./data/05_01_2024_11_11_06')
-    
+    # dir_list = load_all_npy('./data/05_01_2024_11_11_06')   
     # file_select = np.random.randint(0, len(dir_list))
     # print(f"Selected file: {file_select}")
-    
     # # 15688
     # throw_file = dir_list[file_select]
     # trans = np.load(throw_file) * 1000
     
-    coord_start = int(0.4 * len(trans))
-    start = trans[coord_start]
+    coord_start = int(0.95 * len(trans))
+    start = trans[-10]
     trans = trans - start 
     
     
-    xyz_min = np.array([-200, -200, -200])
+    xyz_min = np.array([-200.0, -200.0, -200.0])
     xyz_max = np.array([200, 200, 200])
-    estimator = Estimator(dt = 1/100, max_time = 0.75, xyz_min = xyz_min , xyz_max = xyz_max)
+    estimator = Estimator(dt = 1/100, max_time = 1.5, xyz_min = xyz_min , xyz_max = xyz_max)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -228,55 +230,32 @@ if __name__ == "__main__":
     ax.set_zlim([-1000, 1000])
     plot_bbox(ax, xyz_min, xyz_max)
     
-    n = 150
-    import time
+    estimator.reset()
     
     start = time.time()
+    alpha = 0.1
     for i, pos in enumerate(trans):
-            # time.sleep(1/80)
-            if i < n:
+            estimator.position_callback(pos)
+            if estimator.flg_done:
+                trajectory = estimator.saved_trajectory
+                print(f"Step: {i}")
+                xs = trajectory[:, 0]
+                ys = trajectory[:, 1]
+                zs = trajectory[:, 2]
                 
-                trajectory, in_workspace = estimator.position_callback(pos)
-                if estimator.flg_done:
-                    print("Broj iteracija: ", i)
-                    print(f"Vreme: {time.time() - start}")
-                    
-                if not estimator.flg_done and np.any(in_workspace):
-                    # xs = trajectory[:estimator.index_smooth_time, 0]
-                    # ys = trajectory[:estimator.index_smooth_time, 1]
-                    # zs = trajectory[:estimator.index_smooth_time, 2]
-                        
-                    # ax.scatter(xs,ys, zs, color='#cc8b12')
-                    
-                    xs = estimator.prev_trajectory[in_workspace][-1, 0]
-                    ys = estimator.prev_trajectory[in_workspace][-1, 1]
-                    zs = estimator.prev_trajectory[in_workspace][-1, 2]
-                    ax.scatter(xs,ys, zs, color='#d11dcb')
-                    
+                ax.scatter(xs,ys, zs)#, color = "#f542ef")
+                ax.scatter(
+                    estimator.saved_coord[0], 
+                    estimator.saved_coord[1], 
+                    estimator.saved_coord[2], 
+                    s = 100, #size
+                    color = [0.0, 1.0, 0.2, alpha]
+                    )
+                alpha = alpha + 0.1
+                alpha = min(1.0, alpha)
                 
-            if i == n:        
-               
-                if estimator.saved_trajectory is not None:
-                    trajectory = estimator.saved_trajectory
-                    
-                    xs = trajectory[:, 0]
-                    ys = trajectory[:, 1]
-                    zs = trajectory[:, 2]
-                    
-                    ax.scatter(xs,ys, zs)
-                    
-                    ax.scatter(estimator.saved_coord[0], 
-                               estimator.saved_coord[1], 
-                               estimator.saved_coord[2], 
-                               s = 100, #size
-                               color="g" 
-                               )
-                    
-            
-            
-            
-        
-    
+                estimator.reset()
+                
     velocities = trans[1:] - trans[:-1]
     xs = trans[:, 0]
     ys = trans[:, 1]
@@ -285,8 +264,37 @@ if __name__ == "__main__":
         x, y, z = xyz
         u, v, w = uvw
         ax.quiver(x, y, z, u, v, w, colors=(1, 0, 0))
-
+        
+        
+        
+        
+    # trans_new = []
     
+    # h_new = np.eye(4)
+    # h_new[2, 3] = -46.5
+    
+    # for i in range(len(rot)):
+    #     h_old = np.eye(4)
+    #     rot_mat = R.from_euler("XYZ", rot[i], degrees=True).as_matrix()
+    #     h_old[:3, :3] = rot_mat.copy()
+    #     h_old[:3, 3] = trans[i]
+        
+    #     h_total = h_old @ h_new
+    #     t_new = h_total[:3, 3].copy()
+    #     trans_new.append(t_new)
+        
+    # trans = np.array(trans_new)
+    
+    # velocities = trans[1:] - trans[:-1]
+    # xs = trans[:, 0]
+    # ys = trans[:, 1]
+    # zs = trans[:, 2]
+    # for xyz, uvw in zip(trans[:-1], velocities):
+    #     x, y, z = xyz
+    #     u, v, w = uvw
+    #     ax.quiver(x, y, z, u, v, w, colors=(0, 1, 0))
+
+
     # ax.scatter(xs,ys, zs)
     ax.set_xlabel('X Label')
     ax.set_ylabel('Y Label')
