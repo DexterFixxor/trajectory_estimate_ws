@@ -12,6 +12,7 @@ class Estimator:
         self.g = np.array([0.0, 0.0, -9.81]) * 1000 # mm/s^2
 
         self.prev_pos = None
+        self.prev_dkl = None
         self.velocity = None
         self.prev_trajectory = None
         self.alpha = alpha
@@ -35,7 +36,7 @@ class Estimator:
         in_workspace = None
         if self.prev_pos is not None:
             self.velocity = (pos - self.prev_pos) / self.dt
-        
+            
             # ---------- BEGIN: estimate trajectory
             trajectory = self.estimate_trajectory()
             # self.prev_trajectory = trajectory
@@ -71,15 +72,18 @@ class Estimator:
                         (mean_new - mean_old).T @ inv_cov_new @ (mean_new - mean_old)
                         )
                     
-                    if self.prev_dkl is not None and abs(dkl - self.prev_dkl) < 0.0005:
-                        if not self.flg_done:
-                            self.saved_trajectory = self.prev_trajectory.copy() # type: ignore
-                            self.saved_coord = mean_new.copy()
-                            self.flg_done = True
-                           
+                    if self.prev_dkl is not None:
+                        if abs(dkl - self.prev_dkl) < 0.0005:
+                            if not self.flg_done:
+                                self.saved_trajectory = self.prev_trajectory.copy() # type: ignore
+                                self.saved_coord = mean_new.copy()
+                                self.flg_done = True
+                            
                     self.prev_dkl = dkl
             # ---------- END: check if in workspace
         self.prev_pos = pos
+        
+        
             
     def estimate_trajectory(self):
         if self.prev_pos is not None and self.velocity is not None:

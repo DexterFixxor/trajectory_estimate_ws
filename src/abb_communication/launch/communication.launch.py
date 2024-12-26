@@ -10,7 +10,7 @@ def generate_launch_description():
             name='abb_communication',
             parameters=[
               {
-                "ip": "192.168.1.207"  
+                "ip": "192.168.125.1"  
               }
             ],
             output="screen",

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'trajectory_estimator'
+package_name = 'vicon_data_collector'
 
 setup(
     name=package_name,
@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='dexter',
-    maintainer_email='48955668+DexterFixxor@users.noreply.github.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    maintainer='Lazar Milic',
+    maintainer_email='lazarmilic2@gmail.com',
+    description='Data colecting from vicon',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'trajectory_estimator = trajectory_estimator.estimator_node:main'
+            'vicon_data_collector = vicon_data_collector.vicon_data_collector:main'
         ],
     },
 )

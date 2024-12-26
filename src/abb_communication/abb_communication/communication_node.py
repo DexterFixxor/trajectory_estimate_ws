@@ -11,7 +11,7 @@ class CommunicationNode(Node):
   def __init__(self):
     super().__init__("abb_communication")
     
-    self.declare_parameter(name="ip", value="127.0.0.1")
+    self.declare_parameter(name="ip", value="192.168.125.1")
     ip = self.get_parameter("ip").get_parameter_value().string_value
     
     print()
@@ -20,8 +20,17 @@ class CommunicationNode(Node):
     print("*"*80)
     self.robot = open_abb.Robot(ip=ip)
     
+    self.robot.set_workobject([
+      [579.715, -201.8785, 75.48726], 
+      [1, 0, 0, 0]
+    ])
     
-    
+    self.robot.set_tool(
+      [
+        [-70, 0, 70],
+        [1.0, 0.0, 0.0, 0.0]
+      ]
+    )
     
     print('*'*50)
     print()

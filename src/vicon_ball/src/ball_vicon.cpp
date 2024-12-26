@@ -145,7 +145,7 @@ class BallCenterNode : public rclcpp::Node
     vicon_client.GetFrame();
     // Output_GetFrameNumber frame_number = vicon_client.GetFrameNumber();
   
-    auto trans = vicon_client.GetSegmentGlobalTranslation("D12", "seg").Translation;
+    auto trans = vicon_client.GetSegmentGlobalTranslation("D12", "D12").Translation;
     
     
     msg.x = trans[0];
