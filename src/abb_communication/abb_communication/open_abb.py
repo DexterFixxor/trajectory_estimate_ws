@@ -26,7 +26,7 @@ class Robot:
                  port_motion = 5000,
                  port_logger = 5001):
 
-        self.delay   = .08
+        self.delay   = .01
 
         self.connect_motion((ip, port_motion))
         #log_thread = Thread(target = self.get_net, 

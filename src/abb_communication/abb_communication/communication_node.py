@@ -27,37 +27,42 @@ class CommunicationNode(Node):
     
     self.robot.set_tool(
       [
-        [-70, 0, 70],
-        [1.0, 0.0, 0.0, 0.0]
+        [0, 0, 145],
+        [1, 0, 0, 0]
+        # [ 0.923879533, 0.0, 0.0, -0.382683432 ] # W, X,Y,Z
       ]
     )
     
+    # [ lin, ang, ext, ext] ??
+    self.robot.set_speed([500, 300, 50, 50])
+    
     print('*'*50)
-    print()
-    print("Connected to ABB robot.")
+    print("\nConnected to ABB robot.")
     print("Creating ABB robot 'move' service...")
     print('.\n.\n.')
     
     self.move_l_service = self.create_service(EEPose, "move_linear", self.move_l_callback)
     self.home_service = self.create_service(Empty, "move_home", self.move_home_callback)    
-    print("Service created...")
+    print("Service created.")
     print('*'*50)
     
 
   def move_l_callback(self, request : EEPose.Request, response : EEPose.Response):
-    print("Got request")
+    
     pos = [
       request.x,
       request.y,
-      request.z
-    ]
+      request.z]
     
     rot = [
       request.qw,
       request.qx,
       request.qy,
-      request.qz
-    ]
+      request.qz]
+    
+    
+    # self.get_logger().info(f"Got request! {pos}")
+    
     if request.lin_vel != 0.0 and request.ang_vel != 0.0:
       self.robot.set_speed([
         request.lin_vel,
