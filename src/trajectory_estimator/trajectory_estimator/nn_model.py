@@ -1,3 +1,4 @@
+import time
 import torch
 import torch.nn as nn
 from typing import List, Union
@@ -73,25 +74,53 @@ class TrajectoryEstimator(nn.Module):
         return result
 
 
+# Assuming your TrajectoryEstimator class is already defined above
+
+
+def benchmark(model, positions, desired_len, fps, warmup=3, runs=100):
+    """
+    Benchmark wall-clock execution time of model.estimate_trajectory().
+
+    Args:
+        model: nn.Module instance
+        positions: torch.Tensor input positions
+        desired_len: int, trajectory length
+        fps: int, frames per second
+        warmup: int, number of warmup runs (not timed)
+        runs: int, number of timed runs
+    """
+    # Warmup runs (to stabilize CUDA kernels, JIT, etc.)
+    for _ in range(warmup):
+        _ = model.estimate_trajectory(positions, desired_len, fps)
+
+    times = []
+    for _ in range(runs):
+        start = time.perf_counter()
+        _ = model.estimate_trajectory(positions, desired_len, fps)
+
+        end = time.perf_counter()
+        times.append(end - start)
+
+    avg_time = sum(times) / len(times)
+    print(f"Average wall-clock time over {runs} runs: {avg_time:.6f} seconds")
+    print(f"Min: {min(times):.6f}, Max: {max(times):.6f}")
+    print(f"Average FPS: {1 / avg_time:.2f}")
+    return avg_time, times
+
+
 if __name__ == "__main__":
-
-    """
-    Model test
-    """
-    batch_size = 16
-    seq_len = 20
-    in_size = 3
-    k = 1
-    out_size = k * seq_len * in_size
-
+    # Example usage
+    input_size = 3
+    output_size = 3
     num_lstm = 1
-
     hidden_size = 256
     ff_hidden = []
-    model = TrajectoryEstimator(in_size, out_size, num_lstm, hidden_size, ff_hidden)
 
-    x = torch.rand([batch_size, seq_len, in_size])
-    y = model(x)
+    model = TrajectoryEstimator(input_size, output_size, num_lstm, hidden_size, ff_hidden)
 
-    print(model)
-    print(y.shape)
+    # Random input positions [sequence_len, 3]
+    positions = torch.rand(10, 3)
+    desired_len = 100
+    fps = 30
+
+    benchmark(model, positions, desired_len, fps)

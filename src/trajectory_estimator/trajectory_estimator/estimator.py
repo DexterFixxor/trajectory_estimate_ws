@@ -16,12 +16,13 @@ Pipeline:
 """
 
 from __future__ import annotations
+import time
 
 import numpy as np
 import torch
 
-from .config import all_configs
-from .nn_model import TrajectoryEstimator
+from config import all_configs
+from nn_model import TrajectoryEstimator
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +119,8 @@ class TrajectoryGenerator:
         ).numpy()
         return trajectory_m * M_TO_MM
 
-    def _predict_kinematic(self) -> np.ndarray:
-        """Constant‑velocity + gravity kinematic prediction (mm)."""
+    def _predict_balistic(self) -> np.ndarray:
+        """Constant‑velocity + gravity balistic prediction (mm)."""
         # velocity estimated from the two most‑recent samples
         velocity = (self._positions[-1] - self._positions[-2]) / self.dt  # (3,)
         origin = self._positions[-1]   # anchor to the *current* position  # (3,)
@@ -155,7 +156,7 @@ class TrajectoryGenerator:
         if len(self._positions) < MIN_POSITIONS:
             return None
 
-        return self._predict_nn() if self.flg_use_nn else self._predict_kinematic()
+        return self._predict_nn() if self.flg_use_nn else self._predict_balistic()
 
 
 # ---------------------------------------------------------------------------
@@ -476,3 +477,65 @@ class Estimator:
             f"dkl_th={self.gauss.dkl_th}, "
             f"keep_last_gauss={self.gauss.keep_last})"
         )
+
+
+def benchmark(estimator, positions, warmup=3, runs=20):
+    """
+    Benchmark wall-clock execution time of estimator.position_callback().
+
+    Args:
+        estimator: Estimator instance
+        positions: list of np.ndarray positions (each [X,Y,Z] in mm)
+        warmup: number of warmup runs
+        runs: number of timed runs
+    """
+    # Warmup
+    for _ in range(warmup):
+        for pos in positions:
+            estimator.position_callback(pos)
+        estimator.reset()
+
+    times = []
+    for _ in range(runs):
+        for i, pos in enumerate(positions):
+
+            if i > 11:
+                start = time.perf_counter()
+
+            estimator.position_callback(pos)
+            if i > 11:
+                end = time.perf_counter()
+                times.append(end - start)
+        estimator.reset()
+
+    avg_time = sum(times) / len(times)
+    print(f"Average wall-clock time over {runs} runs: {avg_time:.6f} seconds")
+    print(f"Min: {min(times):.6f}, Max: {max(times):.6f}")
+    print(f"Average FPS: { 1 / avg_time:.2f}")
+    print(f"Minimal FPS: { 1 / max(times):.2f}")
+    return avg_time, times
+
+
+if __name__ == "__main__":
+    # Example setup
+    dt = 1.0 / 100.0  # 30 Hz sampling
+    xyz_min = [-1000, -1000, 0]   # workspace bounds (mm)
+    xyz_max = [1000, 1000, 2000]
+    # path to your trained NN weights
+    state_dict_path = "/home/dexter/Programming/RoboticsFTN/balltrack_ws/src/trajectory_estimator/trajectory_estimator/models/model.pth"
+
+    estimator = Estimator(
+        dt=dt,
+        xyz_min=xyz_min,
+        xyz_max=xyz_max,
+        state_dict_path=state_dict_path,
+        alpha=0.8,
+        dkl_th=0.05,
+        keep_last_gauss=100,
+        flg_use_nn=True,
+    )
+
+    # Generate synthetic positions (mm)
+    positions = [np.random.rand(3) * 1000 for _ in range(20)]
+
+    benchmark(estimator, positions)
